@@ -371,69 +371,85 @@ export function LoanNoter() {
                 {tab === 'payments' && (
                   <div className="space-y-3">
                     <form onSubmit={handleAddPayment} className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Add Payment</h3>
+                      <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Add Payment</h3>
+                      <div className="grid gap-2">
+                        <div className="grid grid-cols-12 gap-2 items-end">
+                          <div className="col-span-2 flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500">Date</label>
+                            <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className={IC} />
+                          </div>
+                          <div className="col-span-3 flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500">Type</label>
+                            <div className="flex gap-0">
+                              <button type="button" onClick={() => setPayType('emi')} className={`flex-1 py-1 px-2 rounded-l text-xs font-medium transition-colors ${payType === 'emi' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-100'}`}>EMI</button>
+                              <button type="button" onClick={() => setPayType('pre-emi')} className={`flex-1 py-1 px-2 text-xs font-medium transition-colors ${payType === 'pre-emi' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-600 border-l-0 hover:bg-gray-100'}`}>Pre-EMI</button>
+                              <button type="button" onClick={() => setPayType('part')} className={`flex-1 py-1 px-2 rounded-r text-xs font-medium transition-colors ${payType === 'part' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-600 border-l-0 hover:bg-gray-100'}`}>Part</button>
+                            </div>
+                          </div>
+                          <div className="col-span-3 flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500">Amount (₹)</label>
+                            <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="₹" className={IC} />
+                          </div>
+                          <div className="col-span-4 flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500">Outstanding After (₹)</label>
+                            <input type="number" value={payNewOut} onChange={e => setPayNewOut(e.target.value)} placeholder="Enter from bank" className={IC} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-4 flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500">Rem. Tenure (Mo)</label>
+                            <input type="number" value={payTenure} onChange={e => setPayTenure(e.target.value)} placeholder="Optional" className={IC} />
+                          </div>
+                          <div className="col-span-8 flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500">Notes</label>
+                            <input type="text" value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="Optional" className={IC} />
+                          </div>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
-                          <span>Date</span>
-                          <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className={IC} />
-                        </label>
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
-                          <span>Type</span>
-                          <select value={payType} onChange={e => setPayType(e.target.value as 'emi' | 'pre-emi' | 'part')} className={IC}>
-                            <option value="emi">EMI</option>
-                            <option value="pre-emi">Pre-EMI</option>
-                            <option value="part">Part Payment</option>
-                          </select>
-                        </label>
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
-                          <span>Amount</span>
-                          <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="₹" className={IC} />
-                        </label>
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
-                          <span>Outstanding After</span>
-                          <input type="number" value={payNewOut} onChange={e => setPayNewOut(e.target.value)} placeholder="Optional" className={IC} />
-                        </label>
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
-                          <span>Remaining Tenure</span>
-                          <input type="number" value={payTenure} onChange={e => setPayTenure(e.target.value)} placeholder="Optional" className={IC} />
-                        </label>
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500 col-span-2">
-                          <span>Notes</span>
-                          <input type="text" value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="Optional" className={IC} />
-                        </label>
-                      </div>
-                      <div className="flex justify-end">
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium">Save Payment</button>
+                      <div className="flex justify-center pt-1">
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-1.5 text-xs font-medium">Add Payment</button>
                       </div>
                     </form>
                     {paymentHistory.length ? (
-                      <div className="overflow-hidden border border-gray-200 rounded-lg">
-                        <table className="min-w-full divide-y divide-gray-200 text-left">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-2 py-2 font-medium text-gray-600">Date</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Type</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Amount</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Outstanding After</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Remaining Tenure</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Notes</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200 bg-white">
-                            {paymentHistory.map(row => (
-                              <tr key={row.id} className="align-top">
-                                <td className="px-2 py-2">{fmtDate(row.date)}</td>
-                                <td className="px-2 py-2"><TB type={row.type} /></td>
-                                <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(row.amount)}</td>
-                                <td className="px-2 py-2 text-right tabular-nums text-gray-700">{row.newOutstanding != null ? fmtCurrency(row.newOutstanding) : '-'}</td>
-                                <td className="px-2 py-2 text-right tabular-nums text-gray-700">{row.remainingTenure ?? '-'}</td>
-                                <td className="px-2 py-2 max-w-[180px] text-gray-500">{row.notes ?? '-'}</td>
+                      <div className="space-y-2">
+                        <div className="text-xs text-gray-600 font-medium">Total: {paymentHistory.length} entries</div>
+                        <div className="overflow-hidden border border-gray-200 rounded-lg">
+                          <table className="min-w-full divide-y divide-gray-200 text-left">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => setPaySort(paySort === 'asc' ? 'desc' : 'asc')}>Date {paySort === 'asc' ? '↑' : '↓'}</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Type</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Amount</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Interest</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Outstanding After</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Remaining Tenure</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Notes</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 bg-white">
+                              {[...paymentHistory].sort((a, b) => paySort === 'asc' ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)).map(row => {
+                                let interest = 0
+                                if (row.type === 'pre-emi') {
+                                  interest = row.amount
+                                } else if (row.type === 'emi' && row.newOutstanding != null) {
+                                  const principal = Math.max(0, (loanPayments.length ? displayOutstanding : 0) + (loanPayments.filter(p => p.date < row.date).reduce((s, p) => s + p.amount, 0)) - row.newOutstanding)
+                                  interest = Math.max(0, row.amount - principal)
+                                }
+                                return (
+                                  <tr key={row.id} className="align-top">
+                                    <td className="px-2 py-2">{fmtDate(row.date)}</td>
+                                    <td className="px-2 py-2"><TB type={row.type} /></td>
+                                    <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(row.amount)}</td>
+                                    <td className="px-2 py-2 text-right tabular-nums text-orange-600 font-medium">{fmtCurrency(Math.round(interest))}</td>
+                                    <td className="px-2 py-2 text-right tabular-nums text-gray-700">{row.newOutstanding != null ? fmtCurrency(row.newOutstanding) : '-'}</td>
+                                    <td className="px-2 py-2 text-right tabular-nums text-gray-700">{row.remainingTenure ?? '-'}</td>
+                                    <td className="px-2 py-2 max-w-[180px] text-gray-500">{row.notes ?? '-'}</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     ) : (
                       <p>No payment entries yet.</p>
@@ -443,72 +459,77 @@ export function LoanNoter() {
                 {tab === 'disbursements' && (
                   <div className="space-y-3">
                     <form onSubmit={handleAddDisb} className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Add Disbursal</h3>
+                      <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Add Disbursal</h3>
+                      <div className="grid gap-2">
+                        <div className="grid grid-cols-12 gap-2 items-end">
+                          <div className="col-span-3 flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500">DATE</label>
+                            <input type="date" value={disbDate} onChange={e => setDisbDate(e.target.value)} className={IC} />
+                          </div>
+                          <div className="col-span-3 flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500">BUILDER DEMAND (₹)</label>
+                            <input type="number" value={disbDemand} onChange={e => setDisbDemand(e.target.value)} placeholder="Optional" className={IC} />
+                          </div>
+                          <div className="col-span-3 flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500">BANK DISBURSED (₹)</label>
+                            <input type="number" value={disbAmount} onChange={e => setDisbAmount(e.target.value)} placeholder="Required" className={IC} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-3 flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500">NEW EMI (₹)</label>
+                            <input type="number" value={disbNewEmi} onChange={e => setDisbNewEmi(e.target.value)} placeholder="As per bank" className={IC} />
+                          </div>
+                          <div className="col-span-3 flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500">REM. TENURE (MO)</label>
+                            <input type="number" value={disbTenure} onChange={e => setDisbTenure(e.target.value)} placeholder="As per bank" className={IC} />
+                          </div>
+                          <div className="col-span-6 flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500">NOTES</label>
+                            <input type="text" value={disbNotes} onChange={e => setDisbNotes(e.target.value)} placeholder="e.g. 3rd floor slab" className={IC} />
+                          </div>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
-                          <span>Date</span>
-                          <input type="date" value={disbDate} onChange={e => setDisbDate(e.target.value)} className={IC} />
-                        </label>
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
-                          <span>Builder Demand (₹)</span>
-                          <input type="number" value={disbDemand} onChange={e => setDisbDemand(e.target.value)} placeholder="Optional" className={IC} />
-                        </label>
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
-                          <span>Amount (₹)</span>
-                          <input type="number" value={disbAmount} onChange={e => setDisbAmount(e.target.value)} placeholder="Required" className={IC} />
-                        </label>
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
-                          <span>New EMI (₹)</span>
-                          <input type="number" value={disbNewEmi} onChange={e => setDisbNewEmi(e.target.value)} placeholder="As per bank" className={IC} />
-                        </label>
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
-                          <span>Remaining Tenure</span>
-                          <input type="number" value={disbTenure} onChange={e => setDisbTenure(e.target.value)} placeholder="Optional" className={IC} />
-                        </label>
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500 col-span-2">
-                          <span>Notes</span>
-                          <input type="text" value={disbNotes} onChange={e => setDisbNotes(e.target.value)} placeholder="e.g. 3rd floor slab" className={IC} />
-                        </label>
-                      </div>
-                      <div className="flex justify-end">
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium">Add Disbursal</button>
+                      <div className="flex justify-center pt-1">
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-1.5 text-xs font-medium">Add Disbursal</button>
                       </div>
                     </form>
                     {loanDisbursals.length ? (
-                      <div className="overflow-hidden border border-gray-200 rounded-lg">
-                        <table className="min-w-full divide-y divide-gray-200 text-left">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-2 py-2 font-medium text-gray-600">Date</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Demand</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Disbursed</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Shortfall</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Running Total</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">New EMI</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Tenure</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Notes</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200 bg-white">
-                            {loanDisbursals.map(d => {
-                              const shortfall = d.builderDemand && d.builderDemand > d.amount ? d.builderDemand - d.amount : 0
-                              return (
-                                <tr key={d.id} className="align-top">
-                                  <td className="px-2 py-2">{fmtDate(d.date)}</td>
-                                  <td className="px-2 py-2 text-right tabular-nums text-gray-700">{d.builderDemand != null ? fmtCurrency(d.builderDemand) : '-'}</td>
-                                  <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(d.amount)}</td>
-                                  <td className="px-2 py-2 text-right tabular-nums text-gray-700">{shortfall > 0 ? fmtCurrency(shortfall) : '-'}</td>
-                                  <td className="px-2 py-2 text-right tabular-nums text-gray-700">{fmtCurrency(totalDisbursed)}</td>
-                                  <td className="px-2 py-2 text-right tabular-nums text-gray-700">{d.newEmi != null ? fmtCurrency(d.newEmi) : '-'}</td>
-                                  <td className="px-2 py-2 text-right tabular-nums text-gray-700">{d.remainingTenure ?? '-'}</td>
-                                  <td className="px-2 py-2 text-gray-500">{d.notes ?? '-'}</td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
+                      <div className="space-y-2">
+                        <div className="text-xs text-gray-600 font-medium">Disbursals ({loanDisbursals.length})</div>
+                        <div className="overflow-hidden border border-gray-200 rounded-lg">
+                          <table className="min-w-full divide-y divide-gray-200 text-left">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => setDisbSort(disbSort === 'asc' ? 'desc' : 'asc')}>Date {disbSort === 'asc' ? '↑' : '↓'}</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Demand</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Disbursed</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Shortfall</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Running Total</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">New EMI</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Tenure</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Notes</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 bg-white">
+                              {[...loanDisbursals].sort((a, b) => disbSort === 'asc' ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)).map(d => {
+                                const shortfall = d.builderDemand && d.builderDemand > d.amount ? d.builderDemand - d.amount : 0
+                                return (
+                                  <tr key={d.id} className="align-top">
+                                    <td className="px-2 py-2">{fmtDate(d.date)}</td>
+                                    <td className="px-2 py-2">{d.builderDemand != null ? fmtCurrency(d.builderDemand) : '-'}</td>
+                                    <td className="px-2 py-2">{fmtCurrency(d.amount)}</td>
+                                    <td className="px-2 py-2">{shortfall > 0 ? fmtCurrency(shortfall) : '-'}</td>
+                                    <td className="px-2 py-2">{fmtCurrency(totalDisbursed)}</td>
+                                    <td className="px-2 py-2">{d.newEmi != null ? fmtCurrency(d.newEmi) : '-'}</td>
+                                    <td className="px-2 py-2">{d.remainingTenure ?? '-'}</td>
+                                    <td className="px-2 py-2 text-gray-500">{d.notes ?? '-'}</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     ) : (
                       <p>No disbursement entries yet.</p>
@@ -550,25 +571,28 @@ export function LoanNoter() {
                       </div>
                     </form>
                     {(loan.ownContributions ?? []).length ? (
-                      <div className="overflow-hidden border border-gray-200 rounded-lg">
-                        <table className="min-w-full divide-y divide-gray-200 text-left">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-2 py-2 font-medium text-gray-600">Date</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Amount</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Notes</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200 bg-white">
-                            {[(loan.ownContributions ?? [])].flat().map((c, index) => (
-                              <tr key={c.id ?? `${c.date ?? 'date'}-${index}`} className="align-top">
-                                <td className="px-2 py-2">{c.date ? fmtDate(c.date) : '-'}</td>
-                                <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(c.amount)}</td>
-                                <td className="px-2 py-2 text-gray-500">{c.notes ?? '-'}</td>
+                      <div className="space-y-2">
+                        <div className="overflow-hidden border border-gray-200 rounded-lg">
+                          <table className="min-w-full divide-y divide-gray-200 text-left">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => setOwnSort(ownSort === 'asc' ? 'desc' : 'asc')}>Date {ownSort === 'asc' ? '↑' : '↓'}</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Amount</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Notes</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 bg-white">
+                              {[...(loan.ownContributions ?? [])].sort((a, b) => ownSort === 'asc' ? (a.date ?? '').localeCompare(b.date ?? '') : (b.date ?? '').localeCompare(a.date ?? '')).map((c, index) => (
+                                <tr key={c.id ?? `${c.date ?? 'date'}-${index}`} className="align-top">
+                                  <td className="px-2 py-2">{c.date ? fmtDate(c.date) : '-'}</td>
+                                  <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(c.amount)}</td>
+                                  <td className="px-2 py-2 text-gray-500">{c.notes ?? '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="text-right text-xs text-gray-600 font-medium">Total: {fmtCurrency(totalOwn)}</div>
                       </div>
                     ) : (
                       <p>No own contributions yet.</p>
@@ -606,27 +630,31 @@ export function LoanNoter() {
                       </div>
                     </form>
                     {loanOther.length ? (
-                      <div className="overflow-hidden border border-gray-200 rounded-lg">
-                        <table className="min-w-full divide-y divide-gray-200 text-left">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-2 py-2 font-medium text-gray-600">Date</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Category</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Amount</th>
-                              <th className="px-2 py-2 font-medium text-gray-600">Notes</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200 bg-white">
-                            {loanOther.map(o => (
-                              <tr key={o.id} className="align-top">
-                                <td className="px-2 py-2">{o.date ? fmtDate(o.date) : '-'}</td>
-                                <td className="px-2 py-2 text-gray-700">{o.category}</td>
-                                <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(o.amount)}</td>
-                                <td className="px-2 py-2 text-gray-500">{o.notes ?? '-'}</td>
+                      <div className="space-y-2">
+                        <div className="text-xs text-gray-600 font-medium">Cost History ({loanOther.length})</div>
+                        <div className="overflow-hidden border border-gray-200 rounded-lg">
+                          <table className="min-w-full divide-y divide-gray-200 text-left">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => setOtherSort(otherSort === 'asc' ? 'desc' : 'asc')}>Date {otherSort === 'asc' ? '↑' : '↓'}</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Category</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Amount</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Notes</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 bg-white">
+                              {[...loanOther].sort((a, b) => otherSort === 'asc' ? (a.date ?? '').localeCompare(b.date ?? '') : (b.date ?? '').localeCompare(a.date ?? '')).map(o => (
+                                <tr key={o.id} className="align-top">
+                                  <td className="px-2 py-2">{o.date ? fmtDate(o.date) : '-'}</td>
+                                  <td className="px-2 py-2 text-gray-700">{o.category}</td>
+                                  <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(o.amount)}</td>
+                                  <td className="px-2 py-2 text-gray-500">{o.notes ?? '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="text-right text-xs text-gray-600 font-medium">Total: {fmtCurrency(totalOtherCosts)}</div>
                       </div>
                     ) : (
                       <p>No extra cost entries yet.</p>
