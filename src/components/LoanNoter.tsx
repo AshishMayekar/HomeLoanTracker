@@ -73,6 +73,27 @@ function SCard({ label, value, sub, tone, action }: {
   )
 }
 
+function LoanOutstandingCard({ outstanding, remainingToBuilder, total }: {
+  outstanding: number; remainingToBuilder: number | null; total: number
+}) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wide text-gray-400 leading-tight">Loan Outstanding</p>
+      <p className="font-bold mt-0.5 tabular-nums text-lg leading-tight text-blue-700">{fmtCurrency(outstanding)}</p>
+      <div className="mt-2 pt-2 border-t border-gray-200 space-y-1.5">
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-gray-400 leading-tight">Remaining to Builder</p>
+          <p className="font-bold tabular-nums text-sm leading-tight text-orange-600">{remainingToBuilder != null ? fmtCurrency(remainingToBuilder) : '-'}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-gray-400 leading-tight">Total</p>
+          <p className="font-bold tabular-nums text-sm leading-tight text-gray-800">{fmtCurrency(total)}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface LFD { bankName: string; loanAmount: string; interestRate: string; tenureMonths: string; startDate: string; emi: string; notes: string }
 const ELF: LFD = { bankName: '', loanAmount: '', interestRate: '', tenureMonths: '', startDate: '', emi: '', notes: '' }
 
@@ -317,16 +338,14 @@ export function LoanNoter() {
       </div>
       {loan && summary && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-2">
-            <SCard label="Loan Outstanding" value={fmtCurrency(displayOutstanding)} tone="blue" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+            <LoanOutstandingCard outstanding={displayOutstanding} remainingToBuilder={remainingToBuilder} total={totalProjectValue} />
             <SCard label="EMI Paid" tone="indigo" value={fmtCurrency(summary.emiTotal)} sub={`${summary.emiCount} payments`} />
             <SCard label="Interest Paid" tone="orange" value={fmtCurrency(summary.interestPaid)} />
             <SCard label="Part Payments" tone="green" value={fmtCurrency(summary.partPaymentTotal)} sub={`${summary.partPaymentCount} times`} />
             <SCard label="Own Contributions" value={fmtCurrency(totalOwn)} sub={`${(loan.ownContributions ?? []).length} entries`} />
             <SCard label="Other Costs" value={fmtCurrency(totalOtherCosts)} sub={`${loanOther.length} entries`} />
             <SCard label="Grand Total Paid" value={fmtCurrency(grandTotalPaid)} sub="All categories" />
-            <SCard label="Remaining to Builder" value={remainingToBuilder != null ? fmtCurrency(remainingToBuilder) : '-'} tone="gray" />
-            <SCard label="Total" value={fmtCurrency(totalProjectValue)} tone="gray" />
           </div>
           <div className="grid md:grid-cols-4 gap-4 items-start">
             <div className="flex flex-col gap-3">
