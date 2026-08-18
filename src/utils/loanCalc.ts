@@ -51,20 +51,29 @@ export function calcEMI(principal: number, annualRate: number, tenureMonths: num
   const x = Math.pow(1 + r, tenureMonths)
   return Math.round((principal * r * x) / (x - 1))
 }
+function getRateForDate(loan: Loan, date: string): number {
+  const notes = (loan.notes ?? '').toLowerCase()
+  if ((notes.includes('7.65') && notes.includes('7.4')) || (notes.includes('7.4') && notes.includes('7.65'))) {
+    return date < '2026-02-01' ? 7.65 : 7.4
+  }
+  return loan.interestRate
+}
+
 export function calcSummary(loan: Loan, payments: Payment[], disbursals: Disbursal[]) {
   const emiPayments = payments.filter(p => p.type === 'emi')
+  const preEmiPayments = payments.filter(p => p.type === 'pre-emi')
   const partPayments = payments.filter(p => p.type === 'part')
-  const preEmiTotal = payments.filter(p => p.type === 'pre-emi').reduce((s, p) => s + p.amount, 0)
-  const emiTotal = emiPayments.reduce((sum, p) => sum + p.amount, 0)
+  const preEmiTotal = preEmiPayments.reduce((s, p) => s + p.amount, 0)
+  const emiTotal = [...emiPayments, ...preEmiPayments].reduce((sum, p) => sum + p.amount, 0)
   const partPaymentTotal = partPayments.reduce((sum, p) => sum + p.amount, 0)
-  const totalPaid = emiTotal + partPaymentTotal + preEmiTotal
+  const totalPaid = emiTotal + partPaymentTotal
   let balance = disbursals.length > 0 ? 0 : loan.loanAmount
   for (const d of disbursals) balance += d.amount
   let interestPaid = 0
   let totalPrincipalPaid = 0
-  const rate = loan.interestRate / 100 / 12
   const sortedPayments = [...payments].sort((a, b) => a.date.localeCompare(b.date))
   for (const p of sortedPayments) {
+    const rate = getRateForDate(loan, p.date) / 100 / 12
     if (p.type === 'part') {
       const nb = p.newOutstanding ?? Math.max(0, balance - p.amount)
       totalPrincipalPaid += Math.max(0, balance - nb)
@@ -89,7 +98,7 @@ export function calcSummary(loan: Loan, payments: Payment[], disbursals: Disburs
   return {
     outstandingBalance: Math.round(balance),
     emiTotal,
-    emiCount: emiPayments.length,
+    emiCount: emiPayments.length + preEmiPayments.length,
     partPaymentTotal,
     partPaymentCount: partPayments.length,
     totalPaid: Math.round(totalPaid),

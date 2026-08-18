@@ -13,8 +13,21 @@ function uid() { return `${Date.now().toString(36)}-${Math.random().toString(36)
 function fmtCurrency(n: number) { return '₹' + n.toLocaleString('en-IN') }
 function fmtDate(d: string | null) {
   if (!d) return '-'
-  const p = d.length === 7 ? d + '-01' : d
-  return new Date(p).toLocaleDateString('en-IN', { day: d.length > 7 ? 'numeric' : undefined, month: 'short', year: 'numeric' })
+  const text = d.trim()
+  if (!text) return '-'
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const [year, month, day] = text.split('-').map(Number)
+    return new Date(year, month - 1, day).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+  if (/^\d{4}-\d{2}$/.test(text)) {
+    const [year, month] = text.split('-').map(Number)
+    return new Date(year, month - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+  }
+  const parsed = new Date(text)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+  return text
 }
 
 const OTHER_COST_CATEGORIES = [
@@ -170,8 +183,21 @@ export function LoanNoter() {
   const totalOtherCosts = loanOther.reduce((s, o) => s + o.amount, 0)
   const grandTotalPaid = (summary?.totalPaid ?? 0) + totalOwn + totalOtherCosts
   const totalShortfall = loanDisbursals.reduce((s, d) => s + (d.builderDemand && d.builderDemand > d.amount ? d.builderDemand - d.amount : 0), 0)
-  const remainingToBuilder = loan?.propertyTotalCost != null ? loan.propertyTotalCost - (totalDisbursed + totalOwn) : null
+  const paidToBuilder = totalDisbursed
+  const remainingToBuilder = loan?.propertyTotalCost != null ? loan.propertyTotalCost - totalDisbursed : null
+  const totalProjectValue = loan?.propertyTotalCost ?? (totalDisbursed + (remainingToBuilder ?? 0))
   const currentEmi = [...loanDisbursals].filter(d => d.newEmi).sort((a, b) => b.date.localeCompare(a.date))[0]?.newEmi ?? (loan?.emi ?? 0)
+  const paymentHistory = [...loanPayments.map(p => ({ ...p, kind: 'payment' as const })), ...loanDisbursals.map(d => ({
+    id: d.id,
+    loanId: d.loanId,
+    date: d.date,
+    amount: d.amount,
+    type: 'disbursement' as const,
+    newOutstanding: undefined,
+    remainingTenure: d.remainingTenure,
+    notes: d.notes,
+    kind: 'disbursement' as const,
+  }))].sort((a, b) => b.date.localeCompare(a.date))
 
   function persist(nl: Loan[], np: Payment[] = payments, nd: Disbursal[] = disbursals, no: OtherPayment[] = otherPayments) {
     setLoans(nl); saveLoans(nl); setPayments(np); savePayments(np); setDisbursals(nd); saveDisbursals(nd); setOtherPayments(no); saveOtherPayments(no)
@@ -291,14 +317,16 @@ export function LoanNoter() {
       </div>
       {loan && summary && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-            <SCard label="Loan Outstanding" value={fmtCurrency(displayOutstanding)} sub={remainingToBuilder !== null ? `Remaining to Builder: ${fmtCurrency(remainingToBuilder)}` : undefined} tone="blue" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-2">
+            <SCard label="Loan Outstanding" value={fmtCurrency(displayOutstanding)} tone="blue" />
             <SCard label="EMI Paid" tone="indigo" value={fmtCurrency(summary.emiTotal)} sub={`${summary.emiCount} payments`} />
             <SCard label="Interest Paid" tone="orange" value={fmtCurrency(summary.interestPaid)} />
             <SCard label="Part Payments" tone="green" value={fmtCurrency(summary.partPaymentTotal)} sub={`${summary.partPaymentCount} times`} />
             <SCard label="Own Contributions" value={fmtCurrency(totalOwn)} sub={`${(loan.ownContributions ?? []).length} entries`} />
             <SCard label="Other Costs" value={fmtCurrency(totalOtherCosts)} sub={`${loanOther.length} entries`} />
             <SCard label="Grand Total Paid" value={fmtCurrency(grandTotalPaid)} sub="All categories" />
+            <SCard label="Remaining to Builder" value={remainingToBuilder != null ? fmtCurrency(remainingToBuilder) : '-'} tone="gray" />
+            <SCard label="Total" value={fmtCurrency(totalProjectValue)} tone="gray" />
           </div>
           <div className="grid md:grid-cols-4 gap-4 items-start">
             <div className="flex flex-col gap-3">
@@ -321,9 +349,272 @@ export function LoanNoter() {
                 {(['payments', 'disbursements', 'builder', 'other'] as Tab[]).map(t => <button key={t} onClick={() => setTab(t)} className={`flex-1 py-1 rounded-md transition-colors ${tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
               </div>
               <div className="bg-white border border-gray-200 rounded-lg p-4 text-xs text-gray-500">
-                <p>Loan tracking data is available in the selected section.</p>
-                <p className="mt-2">Current tab: <strong>{tab}</strong></p>
-                <p className="mt-2">Disbursed: {fmtCurrency(totalDisbursed)} · Outstanding: {fmtCurrency(displayOutstanding)} · Shortfall: {fmtCurrency(totalShortfall)}</p>
+                {tab === 'payments' && (
+                  <div className="space-y-3">
+                    <form onSubmit={handleAddPayment} className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Add Payment</h3>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Date</span>
+                          <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Type</span>
+                          <select value={payType} onChange={e => setPayType(e.target.value as 'emi' | 'pre-emi' | 'part')} className={IC}>
+                            <option value="emi">EMI</option>
+                            <option value="pre-emi">Pre-EMI</option>
+                            <option value="part">Part Payment</option>
+                          </select>
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Amount</span>
+                          <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="₹" className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Outstanding After</span>
+                          <input type="number" value={payNewOut} onChange={e => setPayNewOut(e.target.value)} placeholder="Optional" className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Remaining Tenure</span>
+                          <input type="number" value={payTenure} onChange={e => setPayTenure(e.target.value)} placeholder="Optional" className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500 col-span-2">
+                          <span>Notes</span>
+                          <input type="text" value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="Optional" className={IC} />
+                        </label>
+                      </div>
+                      <div className="flex justify-end">
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium">Save Payment</button>
+                      </div>
+                    </form>
+                    {paymentHistory.length ? (
+                      <div className="overflow-hidden border border-gray-200 rounded-lg">
+                        <table className="min-w-full divide-y divide-gray-200 text-left">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-2 py-2 font-medium text-gray-600">Date</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Type</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Amount</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Outstanding After</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Remaining Tenure</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 bg-white">
+                            {paymentHistory.map(row => (
+                              <tr key={row.id} className="align-top">
+                                <td className="px-2 py-2">{fmtDate(row.date)}</td>
+                                <td className="px-2 py-2"><TB type={row.type} /></td>
+                                <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(row.amount)}</td>
+                                <td className="px-2 py-2 text-right tabular-nums text-gray-700">{row.newOutstanding != null ? fmtCurrency(row.newOutstanding) : '-'}</td>
+                                <td className="px-2 py-2 text-right tabular-nums text-gray-700">{row.remainingTenure ?? '-'}</td>
+                                <td className="px-2 py-2 max-w-[180px] text-gray-500">{row.notes ?? '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p>No payment entries yet.</p>
+                    )}
+                  </div>
+                )}
+                {tab === 'disbursements' && (
+                  <div className="space-y-3">
+                    <form onSubmit={handleAddDisb} className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Add Disbursal</h3>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Date</span>
+                          <input type="date" value={disbDate} onChange={e => setDisbDate(e.target.value)} className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Builder Demand (₹)</span>
+                          <input type="number" value={disbDemand} onChange={e => setDisbDemand(e.target.value)} placeholder="Optional" className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Amount (₹)</span>
+                          <input type="number" value={disbAmount} onChange={e => setDisbAmount(e.target.value)} placeholder="Required" className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>New EMI (₹)</span>
+                          <input type="number" value={disbNewEmi} onChange={e => setDisbNewEmi(e.target.value)} placeholder="As per bank" className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Remaining Tenure</span>
+                          <input type="number" value={disbTenure} onChange={e => setDisbTenure(e.target.value)} placeholder="Optional" className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500 col-span-2">
+                          <span>Notes</span>
+                          <input type="text" value={disbNotes} onChange={e => setDisbNotes(e.target.value)} placeholder="e.g. 3rd floor slab" className={IC} />
+                        </label>
+                      </div>
+                      <div className="flex justify-end">
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium">Add Disbursal</button>
+                      </div>
+                    </form>
+                    {loanDisbursals.length ? (
+                      <div className="overflow-hidden border border-gray-200 rounded-lg">
+                        <table className="min-w-full divide-y divide-gray-200 text-left">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-2 py-2 font-medium text-gray-600">Date</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Demand</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Disbursed</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Shortfall</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Running Total</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">New EMI</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Tenure</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 bg-white">
+                            {loanDisbursals.map(d => {
+                              const shortfall = d.builderDemand && d.builderDemand > d.amount ? d.builderDemand - d.amount : 0
+                              return (
+                                <tr key={d.id} className="align-top">
+                                  <td className="px-2 py-2">{fmtDate(d.date)}</td>
+                                  <td className="px-2 py-2 text-right tabular-nums text-gray-700">{d.builderDemand != null ? fmtCurrency(d.builderDemand) : '-'}</td>
+                                  <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(d.amount)}</td>
+                                  <td className="px-2 py-2 text-right tabular-nums text-gray-700">{shortfall > 0 ? fmtCurrency(shortfall) : '-'}</td>
+                                  <td className="px-2 py-2 text-right tabular-nums text-gray-700">{fmtCurrency(totalDisbursed)}</td>
+                                  <td className="px-2 py-2 text-right tabular-nums text-gray-700">{d.newEmi != null ? fmtCurrency(d.newEmi) : '-'}</td>
+                                  <td className="px-2 py-2 text-right tabular-nums text-gray-700">{d.remainingTenure ?? '-'}</td>
+                                  <td className="px-2 py-2 text-gray-500">{d.notes ?? '-'}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p>No disbursement entries yet.</p>
+                    )}
+                  </div>
+                )}
+                {tab === 'builder' && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Paid to Builder</p>
+                        <p className="mt-1 text-lg font-bold text-red-600 tabular-nums">{fmtCurrency(paidToBuilder)}</p>
+                      </div>
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Remaining to Builder</p>
+                        <p className="mt-1 text-lg font-bold text-red-600 tabular-nums">{remainingToBuilder != null ? fmtCurrency(remainingToBuilder) : '-'}</p>
+                      </div>
+                    </div>
+                    <form onSubmit={handleAddOwn} className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Own Contributions</h3>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Date</span>
+                          <input type="date" value={ownDate} onChange={e => setOwnDate(e.target.value)} className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Amount</span>
+                          <input type="number" value={ownAmount} onChange={e => setOwnAmount(e.target.value)} className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Notes</span>
+                          <input type="text" value={ownNotes} onChange={e => setOwnNotes(e.target.value)} placeholder="Optional" className={IC} />
+                        </label>
+                      </div>
+                      <div className="flex justify-end">
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium">Add</button>
+                      </div>
+                    </form>
+                    {(loan.ownContributions ?? []).length ? (
+                      <div className="overflow-hidden border border-gray-200 rounded-lg">
+                        <table className="min-w-full divide-y divide-gray-200 text-left">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-2 py-2 font-medium text-gray-600">Date</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Amount</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 bg-white">
+                            {[(loan.ownContributions ?? [])].flat().map((c, index) => (
+                              <tr key={c.id ?? `${c.date ?? 'date'}-${index}`} className="align-top">
+                                <td className="px-2 py-2">{c.date ? fmtDate(c.date) : '-'}</td>
+                                <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(c.amount)}</td>
+                                <td className="px-2 py-2 text-gray-500">{c.notes ?? '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p>No own contributions yet.</p>
+                    )}
+                  </div>
+                )}
+                {tab === 'other' && (
+                  <div className="space-y-3">
+                    <form onSubmit={handleAddOther} className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Add Cost</h3>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Date</span>
+                          <input type="date" value={otherDate} onChange={e => setOtherDate(e.target.value)} className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Category</span>
+                          <select value={otherCategory} onChange={e => setOtherCategory(e.target.value)} className={IC}>
+                            {OTHER_COST_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                          </select>
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Amount</span>
+                          <input type="number" value={otherAmount} onChange={e => setOtherAmount(e.target.value)} className={IC} />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                          <span>Notes</span>
+                          <input type="text" value={otherNotes} onChange={e => setOtherNotes(e.target.value)} placeholder="Optional" className={IC} />
+                        </label>
+                      </div>
+                      <div className="flex justify-end">
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium">Add Cost</button>
+                      </div>
+                    </form>
+                    {loanOther.length ? (
+                      <div className="overflow-hidden border border-gray-200 rounded-lg">
+                        <table className="min-w-full divide-y divide-gray-200 text-left">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-2 py-2 font-medium text-gray-600">Date</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Category</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Amount</th>
+                              <th className="px-2 py-2 font-medium text-gray-600">Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 bg-white">
+                            {loanOther.map(o => (
+                              <tr key={o.id} className="align-top">
+                                <td className="px-2 py-2">{o.date ? fmtDate(o.date) : '-'}</td>
+                                <td className="px-2 py-2 text-gray-700">{o.category}</td>
+                                <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(o.amount)}</td>
+                                <td className="px-2 py-2 text-gray-500">{o.notes ?? '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p>No extra cost entries yet.</p>
+                    )}
+                  </div>
+                )}
+                <p className="mt-3">Disbursed: {fmtCurrency(totalDisbursed)} · Outstanding: {fmtCurrency(displayOutstanding)} · Shortfall: {fmtCurrency(totalShortfall)}</p>
               </div>
             </div>
           </div>
