@@ -73,13 +73,14 @@ function SCard({ label, value, sub, tone, action }: {
   )
 }
 
-function LoanOutstandingCard({ outstanding, remainingToBuilder, total }: {
+function LoanOutstandingCard({ outstanding, remainingToBuilder, total, editing, input, onEdit, onInput, onSave, onCancel }: {
   outstanding: number; remainingToBuilder: number | null; total: number
+  editing: boolean; input: string; onEdit: () => void; onInput: (value: string) => void; onSave: () => void; onCancel: () => void
 }) {
   return (
     <div className="bg-white border border-gray-200 rounded-lg px-3 py-2">
       <p className="text-[10px] uppercase tracking-wide text-gray-400 leading-tight">Loan Outstanding</p>
-      <p className="font-bold mt-0.5 tabular-nums text-lg leading-tight text-blue-700">{fmtCurrency(outstanding)}</p>
+      {editing ? <div className="mt-1 flex flex-col gap-1"><input type="number" value={input} onChange={e => onInput(e.target.value)} className={IC} /><div className="flex gap-2"><EditBtn onClick={onSave} /><button type="button" onClick={onCancel} className="text-gray-400 text-[10px]">Cancel</button></div></div> : <><p className="font-bold mt-0.5 tabular-nums text-lg leading-tight text-blue-700">{fmtCurrency(outstanding)}</p><EditBtn onClick={onEdit} /></>}
       <div className="mt-2 pt-2 border-t border-gray-200 space-y-1.5">
         <div>
           <p className="text-[10px] uppercase tracking-wide text-gray-400 leading-tight">Remaining to Builder</p>
@@ -204,9 +205,12 @@ export function LoanNoter() {
   const totalOtherCosts = loanOther.reduce((s, o) => s + o.amount, 0)
   const grandTotalPaid = (summary?.totalPaid ?? 0) + totalOwn + totalOtherCosts
   const totalShortfall = loanDisbursals.reduce((s, d) => s + (d.builderDemand && d.builderDemand > d.amount ? d.builderDemand - d.amount : 0), 0)
-  const paidToBuilder = totalDisbursed
-  const remainingToBuilder = loan?.propertyTotalCost != null ? loan.propertyTotalCost - totalDisbursed - totalOwn : null
+  const paidToBuilder = totalDisbursed + totalOwn
+  const remainingToBuilder = loan?.propertyTotalCost != null ? loan.propertyTotalCost - paidToBuilder : null
   const totalProjectValue = displayOutstanding + (remainingToBuilder ?? 0)
+  const sortedDisbursals = [...loanDisbursals].sort((a, b) => a.date.localeCompare(b.date))
+  const runningTotals = new Map<string, number>()
+  sortedDisbursals.reduce((total, d) => { const next = total + d.amount; runningTotals.set(d.id, next); return next }, 0)
   const currentEmi = [...loanDisbursals].filter(d => d.newEmi).sort((a, b) => b.date.localeCompare(a.date))[0]?.newEmi ?? (loan?.emi ?? 0)
   const paymentHistory = [...loanPayments.map(p => ({ ...p, kind: 'payment' as const })), ...loanDisbursals.map(d => ({
     id: d.id,
@@ -298,6 +302,11 @@ export function LoanNoter() {
     if (!editOther) return
     persist(loans, payments, disbursals, otherPayments.map(o => o.id === editOther.id ? editOther : o)); setEditOther(null)
   }
+  function savePropertyCost() {
+    if (!loan || !propCostInput) return
+    persist(loans.map(l => l.id === loan.id ? { ...l, propertyTotalCost: parseFloat(propCostInput) } : l))
+    setEditPropCost(false)
+  }
   async function handleExport() {
     setExporting(true)
     try { await exportToExcel(loans, payments, disbursals, otherPayments) } finally { setExporting(false) }
@@ -339,7 +348,11 @@ export function LoanNoter() {
       {loan && summary && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-            <LoanOutstandingCard outstanding={displayOutstanding} remainingToBuilder={remainingToBuilder} total={totalProjectValue} />
+            <LoanOutstandingCard outstanding={displayOutstanding} remainingToBuilder={remainingToBuilder} total={totalProjectValue} editing={editOutstanding} input={outstandingInput} onEdit={() => { setOutstandingInput(String(displayOutstanding)); setEditOutstanding(true) }} onInput={setOutstandingInput} onSave={() => {
+              if (!outstandingInput) return
+              persist(loans.map(l => l.id === loan.id ? { ...l, outstandingOverride: parseFloat(outstandingInput) } : l))
+              setEditOutstanding(false)
+            }} onCancel={() => setEditOutstanding(false)} />
             <SCard label="EMI Paid" tone="indigo" value={fmtCurrency(summary.emiTotal)} sub={`${summary.emiCount} payments`} />
             <SCard label="Interest Paid" tone="orange" value={fmtCurrency(summary.interestPaid)} />
             <SCard label="Part Payments" tone="green" value={fmtCurrency(summary.partPaymentTotal)} sub={`${summary.partPaymentCount} times`} />
@@ -381,9 +394,9 @@ export function LoanNoter() {
                           <div className="col-span-3 flex flex-col gap-1">
                             <label className="text-[11px] text-gray-500">Type</label>
                             <div className="flex gap-0">
-                              <button type="button" onClick={() => setPayType('emi')} className={`flex-1 py-1 px-2 rounded-l text-xs font-medium transition-colors ${payType === 'emi' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-100'}`}>EMI</button>
-                              <button type="button" onClick={() => setPayType('pre-emi')} className={`flex-1 py-1 px-2 text-xs font-medium transition-colors ${payType === 'pre-emi' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-600 border-l-0 hover:bg-gray-100'}`}>Pre-EMI</button>
-                              <button type="button" onClick={() => setPayType('part')} className={`flex-1 py-1 px-2 rounded-r text-xs font-medium transition-colors ${payType === 'part' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-600 border-l-0 hover:bg-gray-100'}`}>Part</button>
+                              <button type="button" onClick={() => setPayType('emi')} className={`flex-1 py-1 px-1 rounded-l text-[10px] font-medium transition-colors ${payType === 'emi' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-100'}`}>EMI</button>
+                              <button type="button" onClick={() => setPayType('pre-emi')} className={`flex-1 py-1 px-1 text-[10px] font-medium transition-colors ${payType === 'pre-emi' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-600 border-l-0 hover:bg-gray-100'}`}>Pre-EMI</button>
+                              <button type="button" onClick={() => setPayType('part')} className={`flex-1 py-1 px-1 rounded-r text-[10px] font-medium transition-colors ${payType === 'part' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-600 border-l-0 hover:bg-gray-100'}`}>Part</button>
                             </div>
                           </div>
                           <div className="col-span-3 flex flex-col gap-1">
@@ -406,7 +419,7 @@ export function LoanNoter() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex justify-center pt-1">
+                      <div className="flex justify-start pt-1">
                         <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-1.5 text-xs font-medium">Add Payment</button>
                       </div>
                     </form>
@@ -500,7 +513,7 @@ export function LoanNoter() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex justify-center pt-1">
+                      <div className="flex justify-start pt-1">
                         <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-1.5 text-xs font-medium">Add Disbursal</button>
                       </div>
                     </form>
@@ -537,7 +550,7 @@ export function LoanNoter() {
                                         <td className="px-2 py-2"><input type="number" value={editDisb.remainingTenure ?? ''} onChange={e => setEditDisb({ ...editDisb, remainingTenure: e.target.value ? parseInt(e.target.value, 10) : undefined })} className={IC} /></td>
                                         <td className="px-2 py-2"><input type="text" value={editDisb.notes ?? ''} onChange={e => setEditDisb({ ...editDisb, notes: e.target.value || undefined })} className={IC} /></td>
                                       </>
-                                    ) : <><td className="px-2 py-2">{fmtDate(d.date)}</td><td className="px-2 py-2">{d.builderDemand != null ? fmtCurrency(d.builderDemand) : '-'}</td><td className="px-2 py-2">{fmtCurrency(d.amount)}</td><td className="px-2 py-2">{shortfall > 0 ? fmtCurrency(shortfall) : '-'}</td><td className="px-2 py-2">{fmtCurrency(totalDisbursed)}</td><td className="px-2 py-2">{d.newEmi != null ? fmtCurrency(d.newEmi) : '-'}</td><td className="px-2 py-2">{d.remainingTenure ?? '-'}</td><td className="px-2 py-2 text-gray-500">{d.notes ?? '-'}</td></>}
+                                    ) : <><td className="px-2 py-2">{fmtDate(d.date)}</td><td className="px-2 py-2">{d.builderDemand != null ? fmtCurrency(d.builderDemand) : '-'}</td><td className="px-2 py-2">{fmtCurrency(d.amount)}</td><td className="px-2 py-2">{shortfall > 0 ? fmtCurrency(shortfall) : '-'}</td><td className="px-2 py-2">{fmtCurrency(runningTotals.get(d.id) ?? d.amount)}</td><td className="px-2 py-2">{d.newEmi != null ? fmtCurrency(d.newEmi) : '-'}</td><td className="px-2 py-2">{d.remainingTenure ?? '-'}</td><td className="px-2 py-2 text-gray-500">{d.notes ?? '-'}</td></>}
                                     <td className="px-2 py-2">{editDisb?.id === d.id ? <div className="flex gap-2"><EditBtn onClick={saveEditDisb} /><button type="button" onClick={() => setEditDisb(null)} className="text-gray-400 text-[10px]">Cancel</button></div> : <EditBtn onClick={() => setEditDisb(d)} />}</td>
                                   </tr>
                                 )
@@ -640,7 +653,7 @@ export function LoanNoter() {
                           <input type="text" value={otherNotes} onChange={e => setOtherNotes(e.target.value)} placeholder="Optional" className={IC} />
                         </label>
                       </div>
-                      <div className="flex justify-end">
+                      <div className="flex justify-start">
                         <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium">Add Cost</button>
                       </div>
                     </form>
