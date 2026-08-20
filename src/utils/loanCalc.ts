@@ -59,6 +59,39 @@ function getRateForDate(loan: Loan, date: string): number {
   return loan.interestRate
 }
 
+export function calcPaymentInterest(loan: Loan, payment: Payment, payments: Payment[], disbursals: Disbursal[]): number {
+  let balance = disbursals.length > 0 ? 0 : loan.loanAmount
+  const events = [
+    ...disbursals.map(d => ({ date: d.date, kind: 'disbursal' as const, value: d })),
+    ...payments.map(p => ({ date: p.date, kind: 'payment' as const, value: p })),
+  ].sort((a, b) => a.date.localeCompare(b.date) || (a.kind === 'disbursal' ? -1 : 1))
+
+  for (const event of events) {
+    if (event.kind === 'disbursal') {
+      balance += event.value.amount
+      continue
+    }
+    const current = event.value
+    if (current.id === payment.id) {
+      if (current.type !== 'emi') return 0
+      if (current.newOutstanding != null) {
+        return Math.max(0, current.amount - Math.max(0, balance - current.newOutstanding))
+      }
+      return Math.max(0, balance * getRateForDate(loan, current.date) / 100 / 12)
+    }
+    if (current.type === 'pre-emi') continue
+    if (current.type === 'part') {
+      balance = current.newOutstanding ?? Math.max(0, balance - current.amount)
+    } else if (current.newOutstanding != null) {
+      balance = current.newOutstanding
+    } else {
+      const interest = balance * getRateForDate(loan, current.date) / 100 / 12
+      balance = Math.max(0, balance - Math.max(0, current.amount - interest))
+    }
+  }
+  return 0
+}
+
 export function calcSummary(loan: Loan, payments: Payment[], disbursals: Disbursal[]) {
   const emiPayments = payments.filter(p => p.type === 'emi')
   const preEmiPayments = payments.filter(p => p.type === 'pre-emi')
@@ -67,32 +100,34 @@ export function calcSummary(loan: Loan, payments: Payment[], disbursals: Disburs
   const emiTotal = [...emiPayments, ...preEmiPayments].reduce((sum, p) => sum + p.amount, 0)
   const partPaymentTotal = partPayments.reduce((sum, p) => sum + p.amount, 0)
   const totalPaid = emiTotal + partPaymentTotal
-  let balance = disbursals.length > 0 ? 0 : loan.loanAmount
-  for (const d of disbursals) balance += d.amount
+  let balance = loan.loanAmount
+  if (disbursals.length > 0) balance = 0
   let interestPaid = 0
   let totalPrincipalPaid = 0
-  const sortedPayments = [...payments].sort((a, b) => a.date.localeCompare(b.date))
-  for (const p of sortedPayments) {
-    const rate = getRateForDate(loan, p.date) / 100 / 12
-    if (p.type === 'part') {
-      const nb = p.newOutstanding ?? Math.max(0, balance - p.amount)
-      totalPrincipalPaid += Math.max(0, balance - nb)
-      balance = nb
-    } else if (p.type === 'pre-emi') {
-      interestPaid += p.amount
-    } else if (p.newOutstanding != null) {
-      const principal = Math.max(0, balance - p.newOutstanding)
-      interestPaid += Math.max(0, p.amount - principal)
-      totalPrincipalPaid += principal
-      balance = p.newOutstanding
-    } else {
-      const interest = balance * rate
-      const principal = Math.max(0, p.amount - interest)
-      interestPaid += interest
-      totalPrincipalPaid += principal
-      balance = Math.max(0, balance - principal)
+  const events = [
+    ...disbursals.map(d => ({ date: d.date, kind: 'disbursal' as const, value: d })),
+    ...payments.map(p => ({ date: p.date, kind: 'payment' as const, value: p })),
+  ].sort((a, b) => a.date.localeCompare(b.date) || (a.kind === 'disbursal' ? -1 : 1))
+  for (const event of events) {
+    if (event.kind === 'disbursal') {
+      balance += event.value.amount
+      continue
     }
+    const p = event.value
+    const rate = getRateForDate(loan, p.date) / 100 / 12
+    if (p.type === 'pre-emi') {
+      interestPaid += p.amount
+      continue
+    }
+    const interest = p.type === 'part' ? 0 : p.newOutstanding != null
+      ? Math.max(0, p.amount - Math.max(0, balance - p.newOutstanding))
+      : balance * rate
+    const principal = Math.max(0, p.amount - interest)
+    interestPaid += interest
+    totalPrincipalPaid += principal
+    balance = p.newOutstanding != null ? p.newOutstanding : Math.max(0, balance - principal)
   }
+  const sortedPayments = [...payments].sort((a, b) => a.date.localeCompare(b.date))
   const lastPayment = sortedPayments.length > 0 ? sortedPayments[sortedPayments.length - 1] : null
 
   return {

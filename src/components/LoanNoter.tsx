@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Disbursal, Loan, OtherPayment, OwnContribution, Payment } from '../utils/loanCalc'
-import { calcEMI, calcSummary } from '../utils/loanCalc'
+import { calcEMI, calcPaymentInterest, calcSummary } from '../utils/loanCalc'
 import {
   exportToExcel, importFromExcel, seedIfEmpty,
   loadDisbursals, loadLoans, loadOtherPayments, loadPayments,
@@ -205,8 +205,8 @@ export function LoanNoter() {
   const grandTotalPaid = (summary?.totalPaid ?? 0) + totalOwn + totalOtherCosts
   const totalShortfall = loanDisbursals.reduce((s, d) => s + (d.builderDemand && d.builderDemand > d.amount ? d.builderDemand - d.amount : 0), 0)
   const paidToBuilder = totalDisbursed
-  const remainingToBuilder = loan?.propertyTotalCost != null ? loan.propertyTotalCost - totalDisbursed : null
-  const totalProjectValue = loan?.propertyTotalCost ?? (totalDisbursed + (remainingToBuilder ?? 0))
+  const remainingToBuilder = loan?.propertyTotalCost != null ? loan.propertyTotalCost - totalDisbursed - totalOwn : null
+  const totalProjectValue = displayOutstanding + (remainingToBuilder ?? 0)
   const currentEmi = [...loanDisbursals].filter(d => d.newEmi).sort((a, b) => b.date.localeCompare(a.date))[0]?.newEmi ?? (loan?.emi ?? 0)
   const paymentHistory = [...loanPayments.map(p => ({ ...p, kind: 'payment' as const })), ...loanDisbursals.map(d => ({
     id: d.id,
@@ -424,26 +424,36 @@ export function LoanNoter() {
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Outstanding After</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Remaining Tenure</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Notes</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200 bg-white">
                               {[...paymentHistory].sort((a, b) => paySort === 'asc' ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)).map(row => {
-                                let interest = 0
-                                if (row.type === 'pre-emi') {
-                                  interest = row.amount
-                                } else if (row.type === 'emi' && row.newOutstanding != null) {
-                                  const principal = Math.max(0, (loanPayments.length ? displayOutstanding : 0) + (loanPayments.filter(p => p.date < row.date).reduce((s, p) => s + p.amount, 0)) - row.newOutstanding)
-                                  interest = Math.max(0, row.amount - principal)
-                                }
+                                const interest = row.kind === 'payment' ? calcPaymentInterest(loan, row, loanPayments, loanDisbursals) : 0
                                 return (
                                   <tr key={row.id} className="align-top">
-                                    <td className="px-2 py-2">{fmtDate(row.date)}</td>
-                                    <td className="px-2 py-2"><TB type={row.type} /></td>
-                                    <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(row.amount)}</td>
-                                    <td className="px-2 py-2 text-right tabular-nums text-orange-600 font-medium">{fmtCurrency(Math.round(interest))}</td>
-                                    <td className="px-2 py-2 text-right tabular-nums text-gray-700">{row.newOutstanding != null ? fmtCurrency(row.newOutstanding) : '-'}</td>
-                                    <td className="px-2 py-2 text-right tabular-nums text-gray-700">{row.remainingTenure ?? '-'}</td>
-                                    <td className="px-2 py-2 max-w-[180px] text-gray-500">{row.notes ?? '-'}</td>
+                                    {editPay?.id === row.id ? (
+                                      <>
+                                        <td className="px-2 py-2"><input type="date" value={editPay.date} onChange={e => setEditPay({ ...editPay, date: e.target.value })} className={IC} /></td>
+                                        <td className="px-2 py-2"><select value={editPay.type} onChange={e => setEditPay({ ...editPay, type: e.target.value as Payment['type'] })} className={IC}><option value="emi">EMI</option><option value="pre-emi">Pre-EMI</option><option value="part">Part</option></select></td>
+                                        <td className="px-2 py-2"><input type="number" value={editPay.amount} onChange={e => setEditPay({ ...editPay, amount: parseFloat(e.target.value) || 0 })} className={IC} /></td>
+                                        <td className="px-2 py-2">-</td>
+                                        <td className="px-2 py-2"><input type="number" value={editPay.newOutstanding ?? ''} onChange={e => setEditPay({ ...editPay, newOutstanding: e.target.value ? parseFloat(e.target.value) : undefined })} className={IC} /></td>
+                                        <td className="px-2 py-2"><input type="number" value={editPay.remainingTenure ?? ''} onChange={e => setEditPay({ ...editPay, remainingTenure: e.target.value ? parseInt(e.target.value, 10) : undefined })} className={IC} /></td>
+                                        <td className="px-2 py-2"><input type="text" value={editPay.notes ?? ''} onChange={e => setEditPay({ ...editPay, notes: e.target.value || undefined })} className={IC} /><div className="flex gap-2 mt-1"><EditBtn onClick={saveEditPay} /><button type="button" onClick={() => setEditPay(null)} className="text-gray-400 hover:text-gray-600 text-[10px]">Cancel</button></div></td>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <td className="px-2 py-2">{fmtDate(row.date)}</td>
+                                        <td className="px-2 py-2"><TB type={row.type} /></td>
+                                        <td className="px-2 py-2 tabular-nums text-gray-800">{fmtCurrency(row.amount)}</td>
+                                        <td className="px-2 py-2 tabular-nums text-orange-600 font-medium">{row.type === 'emi' ? fmtCurrency(Math.round(interest)) : '-'}</td>
+                                        <td className="px-2 py-2 tabular-nums text-gray-700">{row.newOutstanding != null ? fmtCurrency(row.newOutstanding) : '-'}</td>
+                                        <td className="px-2 py-2 tabular-nums text-gray-700">{row.remainingTenure ?? '-'}</td>
+                                        <td className="px-2 py-2 max-w-[180px] text-gray-500">{row.notes ?? '-'}</td>
+                                      </>
+                                    )}
+                                    <td className="px-2 py-2">{row.kind === 'payment' && editPay?.id !== row.id && <EditBtn onClick={() => setEditPay(row)} />}</td>
                                   </tr>
                                 )
                               })}
@@ -509,6 +519,7 @@ export function LoanNoter() {
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">New EMI</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Tenure</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Notes</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200 bg-white">
@@ -516,14 +527,18 @@ export function LoanNoter() {
                                 const shortfall = d.builderDemand && d.builderDemand > d.amount ? d.builderDemand - d.amount : 0
                                 return (
                                   <tr key={d.id} className="align-top">
-                                    <td className="px-2 py-2">{fmtDate(d.date)}</td>
-                                    <td className="px-2 py-2">{d.builderDemand != null ? fmtCurrency(d.builderDemand) : '-'}</td>
-                                    <td className="px-2 py-2">{fmtCurrency(d.amount)}</td>
-                                    <td className="px-2 py-2">{shortfall > 0 ? fmtCurrency(shortfall) : '-'}</td>
-                                    <td className="px-2 py-2">{fmtCurrency(totalDisbursed)}</td>
-                                    <td className="px-2 py-2">{d.newEmi != null ? fmtCurrency(d.newEmi) : '-'}</td>
-                                    <td className="px-2 py-2">{d.remainingTenure ?? '-'}</td>
-                                    <td className="px-2 py-2 text-gray-500">{d.notes ?? '-'}</td>
+                                    {editDisb?.id === d.id ? (
+                                      <>
+                                        <td className="px-2 py-2"><input type="date" value={editDisb.date} onChange={e => setEditDisb({ ...editDisb, date: e.target.value })} className={IC} /></td>
+                                        <td className="px-2 py-2"><input type="number" value={editDisb.builderDemand ?? ''} onChange={e => setEditDisb({ ...editDisb, builderDemand: e.target.value ? parseFloat(e.target.value) : undefined })} className={IC} /></td>
+                                        <td className="px-2 py-2"><input type="number" value={editDisb.amount} onChange={e => setEditDisb({ ...editDisb, amount: parseFloat(e.target.value) || 0 })} className={IC} /></td>
+                                        <td className="px-2 py-2">-</td><td className="px-2 py-2">-</td>
+                                        <td className="px-2 py-2"><input type="number" value={editDisb.newEmi ?? ''} onChange={e => setEditDisb({ ...editDisb, newEmi: e.target.value ? parseFloat(e.target.value) : undefined })} className={IC} /></td>
+                                        <td className="px-2 py-2"><input type="number" value={editDisb.remainingTenure ?? ''} onChange={e => setEditDisb({ ...editDisb, remainingTenure: e.target.value ? parseInt(e.target.value, 10) : undefined })} className={IC} /></td>
+                                        <td className="px-2 py-2"><input type="text" value={editDisb.notes ?? ''} onChange={e => setEditDisb({ ...editDisb, notes: e.target.value || undefined })} className={IC} /></td>
+                                      </>
+                                    ) : <><td className="px-2 py-2">{fmtDate(d.date)}</td><td className="px-2 py-2">{d.builderDemand != null ? fmtCurrency(d.builderDemand) : '-'}</td><td className="px-2 py-2">{fmtCurrency(d.amount)}</td><td className="px-2 py-2">{shortfall > 0 ? fmtCurrency(shortfall) : '-'}</td><td className="px-2 py-2">{fmtCurrency(totalDisbursed)}</td><td className="px-2 py-2">{d.newEmi != null ? fmtCurrency(d.newEmi) : '-'}</td><td className="px-2 py-2">{d.remainingTenure ?? '-'}</td><td className="px-2 py-2 text-gray-500">{d.notes ?? '-'}</td></>}
+                                    <td className="px-2 py-2">{editDisb?.id === d.id ? <div className="flex gap-2"><EditBtn onClick={saveEditDisb} /><button type="button" onClick={() => setEditDisb(null)} className="text-gray-400 text-[10px]">Cancel</button></div> : <EditBtn onClick={() => setEditDisb(d)} />}</td>
                                   </tr>
                                 )
                               })}
@@ -579,14 +594,14 @@ export function LoanNoter() {
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => setOwnSort(ownSort === 'asc' ? 'desc' : 'asc')}>Date {ownSort === 'asc' ? '↑' : '↓'}</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Amount</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Notes</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200 bg-white">
                               {[...(loan.ownContributions ?? [])].sort((a, b) => ownSort === 'asc' ? (a.date ?? '').localeCompare(b.date ?? '') : (b.date ?? '').localeCompare(a.date ?? '')).map((c, index) => (
                                 <tr key={c.id ?? `${c.date ?? 'date'}-${index}`} className="align-top">
-                                  <td className="px-2 py-2">{c.date ? fmtDate(c.date) : '-'}</td>
-                                  <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(c.amount)}</td>
-                                  <td className="px-2 py-2 text-gray-500">{c.notes ?? '-'}</td>
+                                  {editOwn?.id === c.id ? <><td className="px-2 py-2"><input type="date" value={editOwn.date ?? ''} onChange={e => setEditOwn({ ...editOwn, date: e.target.value || undefined })} className={IC} /></td><td className="px-2 py-2"><input type="number" value={editOwn.amount} onChange={e => setEditOwn({ ...editOwn, amount: parseFloat(e.target.value) || 0 })} className={IC} /></td><td className="px-2 py-2"><input type="text" value={editOwn.notes ?? ''} onChange={e => setEditOwn({ ...editOwn, notes: e.target.value || undefined })} className={IC} /></td></> : <><td className="px-2 py-2">{c.date ? fmtDate(c.date) : '-'}</td><td className="px-2 py-2 tabular-nums text-gray-800">{fmtCurrency(c.amount)}</td><td className="px-2 py-2 text-gray-500">{c.notes ?? '-'}</td></>}
+                                  <td className="px-2 py-2">{editOwn?.id === c.id ? <div className="flex gap-2"><EditBtn onClick={saveEditOwn} /><button type="button" onClick={() => setEditOwn(null)} className="text-gray-400 text-[10px]">Cancel</button></div> : <EditBtn onClick={() => setEditOwn(c)} />}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -640,15 +655,14 @@ export function LoanNoter() {
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Category</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Amount</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Notes</th>
+                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200 bg-white">
                               {[...loanOther].sort((a, b) => otherSort === 'asc' ? (a.date ?? '').localeCompare(b.date ?? '') : (b.date ?? '').localeCompare(a.date ?? '')).map(o => (
                                 <tr key={o.id} className="align-top">
-                                  <td className="px-2 py-2">{o.date ? fmtDate(o.date) : '-'}</td>
-                                  <td className="px-2 py-2 text-gray-700">{o.category}</td>
-                                  <td className="px-2 py-2 text-right tabular-nums text-gray-800">{fmtCurrency(o.amount)}</td>
-                                  <td className="px-2 py-2 text-gray-500">{o.notes ?? '-'}</td>
+                                  {editOther?.id === o.id ? <><td className="px-2 py-2"><input type="date" value={editOther.date ?? ''} onChange={e => setEditOther({ ...editOther, date: e.target.value || undefined })} className={IC} /></td><td className="px-2 py-2"><select value={editOther.category} onChange={e => setEditOther({ ...editOther, category: e.target.value })} className={IC}>{OTHER_COST_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></td><td className="px-2 py-2"><input type="number" value={editOther.amount} onChange={e => setEditOther({ ...editOther, amount: parseFloat(e.target.value) || 0 })} className={IC} /></td><td className="px-2 py-2"><input type="text" value={editOther.notes ?? ''} onChange={e => setEditOther({ ...editOther, notes: e.target.value || undefined })} className={IC} /></td></> : <><td className="px-2 py-2">{o.date ? fmtDate(o.date) : '-'}</td><td className="px-2 py-2 text-gray-700">{o.category}</td><td className="px-2 py-2 tabular-nums text-gray-800">{fmtCurrency(o.amount)}</td><td className="px-2 py-2 text-gray-500">{o.notes ?? '-'}</td></>}
+                                  <td className="px-2 py-2">{editOther?.id === o.id ? <div className="flex gap-2"><EditBtn onClick={saveEditOther} /><button type="button" onClick={() => setEditOther(null)} className="text-gray-400 text-[10px]">Cancel</button></div> : <EditBtn onClick={() => setEditOther(o)} />}</td>
                                 </tr>
                               ))}
                             </tbody>
