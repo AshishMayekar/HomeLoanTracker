@@ -209,6 +209,19 @@ export function LoanNoter() {
   const remainingToBuilder = loan?.propertyTotalCost != null ? loan.propertyTotalCost - paidToBuilder : null
   const totalProjectValue = displayOutstanding + (remainingToBuilder ?? 0)
   const sortedDisbursals = [...loanDisbursals].sort((a, b) => a.date.localeCompare(b.date))
+  const disbursalOutstandings = new Map<string, number>()
+  let previousPaymentOutstanding: number | undefined
+  const outstandingEvents = [
+    ...loanPayments.map(p => ({ date: p.date, kind: 'payment' as const, value: p })),
+    ...sortedDisbursals.map(d => ({ date: d.date, kind: 'disbursal' as const, value: d })),
+  ].sort((a, b) => a.date.localeCompare(b.date) || (a.kind === 'disbursal' ? -1 : 1))
+  outstandingEvents.forEach(event => {
+    if (event.kind === 'payment') {
+      if (event.value.newOutstanding != null) previousPaymentOutstanding = event.value.newOutstanding
+    } else if (previousPaymentOutstanding != null) {
+      disbursalOutstandings.set(event.value.id, previousPaymentOutstanding + event.value.amount)
+    }
+  })
   const runningTotals = new Map<string, number>()
   sortedDisbursals.reduce((total, d) => { const next = total + d.amount; runningTotals.set(d.id, next); return next }, 0)
   const currentEmi = [...loanDisbursals].filter(d => d.newEmi).sort((a, b) => b.date.localeCompare(a.date))[0]?.newEmi ?? (loan?.emi ?? 0)
@@ -218,7 +231,7 @@ export function LoanNoter() {
     date: d.date,
     amount: d.amount,
     type: 'disbursement' as const,
-    newOutstanding: runningTotals.get(d.id),
+    newOutstanding: disbursalOutstandings.get(d.id),
     remainingTenure: d.remainingTenure,
     notes: d.notes,
     kind: 'disbursement' as const,
