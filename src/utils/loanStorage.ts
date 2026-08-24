@@ -115,7 +115,7 @@ export async function exportToExcel(loans: Loan[], payments: Payment[], disbursa
   const wb = utils.book_new()
   utils.book_append_sheet(wb, utils.json_to_sheet(loans.map(l => ({ Bank: l.bankName, 'Loan Amount': l.loanAmount, 'Interest Rate (%)': l.interestRate, 'Tenure (months)': l.tenureMonths, 'Start Date': l.startDate, EMI: l.emi, Notes: l.notes ?? '' }))), 'Loans')
   utils.book_append_sheet(wb, utils.json_to_sheet(payments.map(p => ({ Date: p.date, Type: p.type, Amount: p.amount, 'Outstanding After': p.newOutstanding ?? '', 'Remaining Tenure': p.remainingTenure ?? '', Notes: p.notes ?? '' }))), 'Payments')
-  utils.book_append_sheet(wb, utils.json_to_sheet(disbursals.map(d => ({ Date: d.date, Amount: d.amount, 'Builder Demand': d.builderDemand ?? '', 'New EMI': d.newEmi ?? '', Notes: d.notes ?? '' }))), 'Disbursements')
+  utils.book_append_sheet(wb, utils.json_to_sheet(disbursals.map(d => ({ Date: d.date, Amount: d.amount, 'Builder Demand': d.builderDemand ?? '', 'Outstanding After': d.newOutstanding ?? '', 'New EMI': d.newEmi ?? '', Notes: d.notes ?? '' }))), 'Disbursements')
   if (otherPayments.length) utils.book_append_sheet(wb, utils.json_to_sheet(otherPayments.map(o => ({ Date: o.date ?? '', Category: o.category, Amount: o.amount, Notes: o.notes ?? '' }))), 'Other Costs')
   writeFile(wb, `loan-noter-${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
@@ -213,6 +213,7 @@ export async function importFromExcel(file: File) {
       date: toIsoDate(pickValue(r, ['Date', 'Disbursal Date', 'Transaction Date'])),
       amount: parseNumber(pickValue(r, ['Amount', 'Disbursed Amount', 'Disbursement Amount'])),
       builderDemand: parseOptionalNumber(pickValue(r, ['Builder Demand', 'Builder Demand Amount', 'BuilderDemand'])),
+      newOutstanding: parseOptionalNumber(pickValue(r, ['Outstanding After', 'Outstanding Balance', 'OutstandingAfter', 'New Outstanding'])),
       newEmi: parseOptionalNumber(pickValue(r, ['New EMI', 'Revised EMI', 'Updated EMI', 'NewEMI'])),
       remainingTenure: parseOptionalNumber(pickValue(r, ['Remaining Tenure', 'Tenure Remaining', 'RemainingMonths'])),
       notes: normalizeText(pickValue(r, ['Notes', 'Narration'])) ? String(pickValue(r, ['Notes', 'Narration'])) : undefined,
