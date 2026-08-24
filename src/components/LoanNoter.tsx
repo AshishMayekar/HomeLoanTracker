@@ -218,7 +218,7 @@ export function LoanNoter() {
     date: d.date,
     amount: d.amount,
     type: 'disbursement' as const,
-    newOutstanding: undefined,
+    newOutstanding: runningTotals.get(d.id),
     remainingTenure: d.remainingTenure,
     notes: d.notes,
     kind: 'disbursement' as const,
