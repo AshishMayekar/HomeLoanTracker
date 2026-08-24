@@ -566,15 +566,30 @@ export function LoanNoter() {
                 )}
                 {tab === 'builder' && (
                   <div className="space-y-3">
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-400">Property Total Cost</p>
+                          {!editPropCost && <p className="mt-1 text-lg font-bold text-gray-800 tabular-nums">{loan.propertyTotalCost != null ? fmtCurrency(loan.propertyTotalCost) : '-'}</p>}
+                        </div>
+                        {!editPropCost && <EditBtn onClick={() => { setPropCostInput(String(loan.propertyTotalCost ?? '')); setEditPropCost(true) }} />}
+                      </div>
+                      {editPropCost && <div className="flex gap-2 mt-2"><input type="number" value={propCostInput} onChange={e => setPropCostInput(e.target.value)} placeholder="Enter total property cost" className={IC} /><EditBtn onClick={savePropertyCost} /><button type="button" onClick={() => setEditPropCost(false)} className="text-gray-400 text-[10px]">Cancel</button></div>}
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                         <p className="text-[10px] uppercase tracking-wide text-gray-400">Paid to Builder</p>
                         <p className="mt-1 text-lg font-bold text-red-600 tabular-nums">{fmtCurrency(paidToBuilder)}</p>
+                        <p className="mt-1 text-[10px] text-gray-400">Bank {fmtCurrency(totalDisbursed)} + Own {fmtCurrency(totalOwn)}</p>
                       </div>
                       <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                         <p className="text-[10px] uppercase tracking-wide text-gray-400">Remaining to Builder</p>
                         <p className="mt-1 text-lg font-bold text-red-600 tabular-nums">{remainingToBuilder != null ? fmtCurrency(remainingToBuilder) : '-'}</p>
                       </div>
+                    </div>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Bank Disbursals</h3>
+                      {loanDisbursals.length ? <div className="mt-2 space-y-1.5">{loanDisbursals.map(d => <div key={d.id} className="flex items-center justify-between gap-2 text-xs"><span className="text-gray-500">{fmtDate(d.date)}</span><span className="font-medium text-gray-800 tabular-nums">{fmtCurrency(d.amount)}</span></div>)}<div className="flex justify-between border-t border-gray-200 pt-1.5 text-xs font-semibold text-gray-700"><span>Total Bank Disbursals</span><span className="tabular-nums">{fmtCurrency(totalDisbursed)}</span></div></div> : <p className="mt-2 text-xs text-gray-400">No bank disbursals yet.</p>}
                     </div>
                     <form onSubmit={handleAddOwn} className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
                       <div className="flex items-center justify-between">
@@ -620,7 +635,7 @@ export function LoanNoter() {
                             </tbody>
                           </table>
                         </div>
-                        <div className="text-right text-xs text-gray-600 font-medium">Total: {fmtCurrency(totalOwn)}</div>
+                        <div className="text-left text-xs text-gray-600 font-medium">Total: {fmtCurrency(totalOwn)}</div>
                       </div>
                     ) : (
                       <p>No own contributions yet.</p>
@@ -681,7 +696,7 @@ export function LoanNoter() {
                             </tbody>
                           </table>
                         </div>
-                        <div className="text-right text-xs text-gray-600 font-medium">Total: {fmtCurrency(totalOtherCosts)}</div>
+                        <div className="text-left text-xs text-gray-600 font-medium">Total: {fmtCurrency(totalOtherCosts)}</div>
                       </div>
                     ) : (
                       <p>No extra cost entries yet.</p>
