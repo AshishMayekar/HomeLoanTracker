@@ -86,7 +86,7 @@ function LoanOutstandingCard({ outstanding, remainingToBuilder, total, editing, 
           <p className="text-[10px] uppercase tracking-wide text-gray-400 leading-tight">Remaining to Builder</p>
           <p className="font-bold tabular-nums text-sm leading-tight text-orange-600">{remainingToBuilder != null ? fmtCurrency(remainingToBuilder) : '-'}</p>
         </div>
-        <div>
+        <div className="text-right">
           <p className="text-[10px] uppercase tracking-wide text-gray-400 leading-tight">Total</p>
           <p className="font-bold tabular-nums text-sm leading-tight text-gray-800">{fmtCurrency(total)}</p>
         </div>
@@ -302,6 +302,23 @@ export function LoanNoter() {
     if (!editOther) return
     persist(loans, payments, disbursals, otherPayments.map(o => o.id === editOther.id ? editOther : o)); setEditOther(null)
   }
+  function deletePayment(id: string) {
+    persist(loans, payments.filter(p => p.id !== id))
+    if (editPay?.id === id) setEditPay(null)
+  }
+  function deleteDisbursal(id: string) {
+    persist(loans, payments, disbursals.filter(d => d.id !== id))
+    if (editDisb?.id === id) setEditDisb(null)
+  }
+  function deleteOwn(id: string) {
+    if (!loan) return
+    persist(loans.map(l => l.id === loan.id ? { ...l, ownContributions: (l.ownContributions ?? []).filter(c => c.id !== id) } : l))
+    if (editOwn?.id === id) setEditOwn(null)
+  }
+  function deleteOther(id: string) {
+    persist(loans, payments, disbursals, otherPayments.filter(o => o.id !== id))
+    if (editOther?.id === id) setEditOther(null)
+  }
   function savePropertyCost() {
     if (!loan || !propCostInput) return
     persist(loans.map(l => l.id === loan.id ? { ...l, propertyTotalCost: parseFloat(propCostInput) } : l))
@@ -466,7 +483,7 @@ export function LoanNoter() {
                                         <td className="px-2 py-2 max-w-[180px] text-gray-500">{row.notes ?? '-'}</td>
                                       </>
                                     )}
-                                    <td className="px-2 py-2">{row.kind === 'payment' && editPay?.id !== row.id && <EditBtn onClick={() => setEditPay(row)} />}</td>
+                                    <td className="px-2 py-2">{row.kind === 'payment' && <div className="flex items-center gap-2">{editPay?.id !== row.id && <EditBtn onClick={() => setEditPay(row)} />}<Del onClick={() => deletePayment(row.id)} /></div>}</td>
                                   </tr>
                                 )
                               })}
@@ -551,7 +568,7 @@ export function LoanNoter() {
                                         <td className="px-2 py-2"><input type="text" value={editDisb.notes ?? ''} onChange={e => setEditDisb({ ...editDisb, notes: e.target.value || undefined })} className={IC} /></td>
                                       </>
                                     ) : <><td className="px-2 py-2">{fmtDate(d.date)}</td><td className="px-2 py-2">{d.builderDemand != null ? fmtCurrency(d.builderDemand) : '-'}</td><td className="px-2 py-2">{fmtCurrency(d.amount)}</td><td className="px-2 py-2">{shortfall > 0 ? fmtCurrency(shortfall) : '-'}</td><td className="px-2 py-2">{fmtCurrency(runningTotals.get(d.id) ?? d.amount)}</td><td className="px-2 py-2">{d.newEmi != null ? fmtCurrency(d.newEmi) : '-'}</td><td className="px-2 py-2">{d.remainingTenure ?? '-'}</td><td className="px-2 py-2 text-gray-500">{d.notes ?? '-'}</td></>}
-                                    <td className="px-2 py-2">{editDisb?.id === d.id ? <div className="flex gap-2"><EditBtn onClick={saveEditDisb} /><button type="button" onClick={() => setEditDisb(null)} className="text-gray-400 text-[10px]">Cancel</button></div> : <EditBtn onClick={() => setEditDisb(d)} />}</td>
+                                    <td className="px-2 py-2"><div className="flex items-center gap-2">{editDisb?.id === d.id ? <div className="flex gap-2"><EditBtn onClick={saveEditDisb} /><button type="button" onClick={() => setEditDisb(null)} className="text-gray-400 text-[10px]">Cancel</button></div> : <EditBtn onClick={() => setEditDisb(d)} />}<Del onClick={() => deleteDisbursal(d.id)} /></div></td>
                                   </tr>
                                 )
                               })}
@@ -566,17 +583,15 @@ export function LoanNoter() {
                 )}
                 {tab === 'builder' && (
                   <div className="space-y-3">
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between">
+                    <div className="grid md:grid-cols-3 gap-2">
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                         <div>
                           <p className="text-[10px] uppercase tracking-wide text-gray-400">Property Total Cost</p>
                           {!editPropCost && <p className="mt-1 text-lg font-bold text-gray-800 tabular-nums">{loan.propertyTotalCost != null ? fmtCurrency(loan.propertyTotalCost) : '-'}</p>}
                         </div>
                         {!editPropCost && <EditBtn onClick={() => { setPropCostInput(String(loan.propertyTotalCost ?? '')); setEditPropCost(true) }} />}
+                        {editPropCost && <div className="flex gap-2 mt-2"><input type="number" value={propCostInput} onChange={e => setPropCostInput(e.target.value)} placeholder="Enter total property cost" className={IC} /><EditBtn onClick={savePropertyCost} /><button type="button" onClick={() => setEditPropCost(false)} className="text-gray-400 text-[10px]">Cancel</button></div>}
                       </div>
-                      {editPropCost && <div className="flex gap-2 mt-2"><input type="number" value={propCostInput} onChange={e => setPropCostInput(e.target.value)} placeholder="Enter total property cost" className={IC} /><EditBtn onClick={savePropertyCost} /><button type="button" onClick={() => setEditPropCost(false)} className="text-gray-400 text-[10px]">Cancel</button></div>}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
                       <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                         <p className="text-[10px] uppercase tracking-wide text-gray-400">Paid to Builder</p>
                         <p className="mt-1 text-lg font-bold text-red-600 tabular-nums">{fmtCurrency(paidToBuilder)}</p>
@@ -587,31 +602,25 @@ export function LoanNoter() {
                         <p className="mt-1 text-lg font-bold text-red-600 tabular-nums">{remainingToBuilder != null ? fmtCurrency(remainingToBuilder) : '-'}</p>
                       </div>
                     </div>
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                      <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Bank Disbursals</h3>
-                      {loanDisbursals.length ? <div className="mt-2 space-y-1.5">{loanDisbursals.map(d => <div key={d.id} className="flex items-center justify-between gap-2 text-xs"><span className="text-gray-500">{fmtDate(d.date)}</span><span className="font-medium text-gray-800 tabular-nums">{fmtCurrency(d.amount)}</span></div>)}<div className="flex justify-between border-t border-gray-200 pt-1.5 text-xs font-semibold text-gray-700"><span>Total Bank Disbursals</span><span className="tabular-nums">{fmtCurrency(totalDisbursed)}</span></div></div> : <p className="mt-2 text-xs text-gray-400">No bank disbursals yet.</p>}
-                    </div>
                     <form onSubmit={handleAddOwn} className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
                       <div className="flex items-center justify-between">
                         <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Own Contributions</h3>
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                      <div className="grid grid-cols-12 gap-2 items-end">
+                        <label className="col-span-2 flex flex-col gap-1 text-[11px] text-gray-500">
                           <span>Date</span>
                           <input type="date" value={ownDate} onChange={e => setOwnDate(e.target.value)} className={IC} />
                         </label>
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                        <label className="col-span-3 flex flex-col gap-1 text-[11px] text-gray-500">
                           <span>Amount</span>
                           <input type="number" value={ownAmount} onChange={e => setOwnAmount(e.target.value)} className={IC} />
                         </label>
-                        <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                        <label className="col-span-6 flex flex-col gap-1 text-[11px] text-gray-500">
                           <span>Notes</span>
                           <input type="text" value={ownNotes} onChange={e => setOwnNotes(e.target.value)} placeholder="Optional" className={IC} />
                         </label>
                       </div>
-                      <div className="flex justify-end">
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium">Add</button>
-                      </div>
+                      <button type="submit" className="col-span-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium">Add</button>
                     </form>
                     {(loan.ownContributions ?? []).length ? (
                       <div className="space-y-2">
@@ -629,7 +638,7 @@ export function LoanNoter() {
                               {[...(loan.ownContributions ?? [])].sort((a, b) => ownSort === 'asc' ? (a.date ?? '').localeCompare(b.date ?? '') : (b.date ?? '').localeCompare(a.date ?? '')).map((c, index) => (
                                 <tr key={c.id ?? `${c.date ?? 'date'}-${index}`} className="align-top">
                                   {editOwn?.id === c.id ? <><td className="px-2 py-2"><input type="date" value={editOwn.date ?? ''} onChange={e => setEditOwn({ ...editOwn, date: e.target.value || undefined })} className={IC} /></td><td className="px-2 py-2"><input type="number" value={editOwn.amount} onChange={e => setEditOwn({ ...editOwn, amount: parseFloat(e.target.value) || 0 })} className={IC} /></td><td className="px-2 py-2"><input type="text" value={editOwn.notes ?? ''} onChange={e => setEditOwn({ ...editOwn, notes: e.target.value || undefined })} className={IC} /></td></> : <><td className="px-2 py-2">{c.date ? fmtDate(c.date) : '-'}</td><td className="px-2 py-2 tabular-nums text-gray-800">{fmtCurrency(c.amount)}</td><td className="px-2 py-2 text-gray-500">{c.notes ?? '-'}</td></>}
-                                  <td className="px-2 py-2">{editOwn?.id === c.id ? <div className="flex gap-2"><EditBtn onClick={saveEditOwn} /><button type="button" onClick={() => setEditOwn(null)} className="text-gray-400 text-[10px]">Cancel</button></div> : <EditBtn onClick={() => setEditOwn(c)} />}</td>
+                                  <td className="px-2 py-2"><div className="flex items-center gap-2">{editOwn?.id === c.id ? <div className="flex gap-2"><EditBtn onClick={saveEditOwn} /><button type="button" onClick={() => setEditOwn(null)} className="text-gray-400 text-[10px]">Cancel</button></div> : <EditBtn onClick={() => setEditOwn(c)} />}<Del onClick={() => deleteOwn(c.id)} /></div></td>
                                 </tr>
                               ))}
                             </tbody>
@@ -640,6 +649,10 @@ export function LoanNoter() {
                     ) : (
                       <p>No own contributions yet.</p>
                     )}
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Bank Disbursals</h3>
+                      {loanDisbursals.length ? <div className="mt-2 space-y-1.5">{loanDisbursals.map(d => <div key={d.id} className="flex items-center justify-between gap-2 text-xs"><span className="text-gray-500">{fmtDate(d.date)}</span><span className="font-medium text-gray-800 tabular-nums">{fmtCurrency(d.amount)}</span></div>)}<div className="flex justify-between border-t border-gray-200 pt-1.5 text-xs font-semibold text-gray-700"><span>Total Bank Disbursals</span><span className="tabular-nums">{fmtCurrency(totalDisbursed)}</span></div></div> : <p className="mt-2 text-xs text-gray-400">No bank disbursals yet.</p>}
+                    </div>
                   </div>
                 )}
                 {tab === 'other' && (
@@ -648,7 +661,7 @@ export function LoanNoter() {
                       <div className="flex items-center justify-between">
                         <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Add Cost</h3>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid md:grid-cols-4 gap-2 items-end">
                         <label className="flex flex-col gap-1 text-[11px] text-gray-500">
                           <span>Date</span>
                           <input type="date" value={otherDate} onChange={e => setOtherDate(e.target.value)} className={IC} />
@@ -690,7 +703,7 @@ export function LoanNoter() {
                               {[...loanOther].sort((a, b) => otherSort === 'asc' ? (a.date ?? '').localeCompare(b.date ?? '') : (b.date ?? '').localeCompare(a.date ?? '')).map(o => (
                                 <tr key={o.id} className="align-top">
                                   {editOther?.id === o.id ? <><td className="px-2 py-2"><input type="date" value={editOther.date ?? ''} onChange={e => setEditOther({ ...editOther, date: e.target.value || undefined })} className={IC} /></td><td className="px-2 py-2"><select value={editOther.category} onChange={e => setEditOther({ ...editOther, category: e.target.value })} className={IC}>{OTHER_COST_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></td><td className="px-2 py-2"><input type="number" value={editOther.amount} onChange={e => setEditOther({ ...editOther, amount: parseFloat(e.target.value) || 0 })} className={IC} /></td><td className="px-2 py-2"><input type="text" value={editOther.notes ?? ''} onChange={e => setEditOther({ ...editOther, notes: e.target.value || undefined })} className={IC} /></td></> : <><td className="px-2 py-2">{o.date ? fmtDate(o.date) : '-'}</td><td className="px-2 py-2 text-gray-700">{o.category}</td><td className="px-2 py-2 tabular-nums text-gray-800">{fmtCurrency(o.amount)}</td><td className="px-2 py-2 text-gray-500">{o.notes ?? '-'}</td></>}
-                                  <td className="px-2 py-2">{editOther?.id === o.id ? <div className="flex gap-2"><EditBtn onClick={saveEditOther} /><button type="button" onClick={() => setEditOther(null)} className="text-gray-400 text-[10px]">Cancel</button></div> : <EditBtn onClick={() => setEditOther(o)} />}</td>
+                                  <td className="px-2 py-2"><div className="flex items-center gap-2">{editOther?.id === o.id ? <div className="flex gap-2"><EditBtn onClick={saveEditOther} /><button type="button" onClick={() => setEditOther(null)} className="text-gray-400 text-[10px]">Cancel</button></div> : <EditBtn onClick={() => setEditOther(o)} />}<Del onClick={() => deleteOther(o.id)} /></div></td>
                                 </tr>
                               ))}
                             </tbody>
