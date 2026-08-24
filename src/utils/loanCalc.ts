@@ -33,7 +33,6 @@ export interface Disbursal {
   date: string
   amount: number
   builderDemand?: number
-  newOutstanding?: number
   newEmi?: number
   remainingTenure?: number
   notes?: string

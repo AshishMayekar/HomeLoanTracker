@@ -158,7 +158,6 @@ export function LoanNoter() {
   const [disbDate, setDisbDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [disbDemand, setDisbDemand] = useState('')
   const [disbAmount, setDisbAmount] = useState('')
-  const [disbNewOut, setDisbNewOut] = useState('')
   const [disbNewEmi, setDisbNewEmi] = useState('')
   const [disbTenure, setDisbTenure] = useState('')
   const [disbNotes, setDisbNotes] = useState('')
@@ -219,7 +218,7 @@ export function LoanNoter() {
     date: d.date,
     amount: d.amount,
     type: 'disbursement' as const,
-    newOutstanding: d.newOutstanding,
+    newOutstanding: undefined,
     remainingTenure: d.remainingTenure,
     notes: d.notes,
     kind: 'disbursement' as const,
@@ -274,10 +273,9 @@ export function LoanNoter() {
     e.preventDefault()
     if (!loan || !disbAmount) return
     persist(loans, payments, [...disbursals, { id: uid(), loanId: loan.id, date: disbDate, amount: parseFloat(disbAmount),
-      builderDemand: disbDemand ? parseFloat(disbDemand) : undefined, newOutstanding: disbNewOut ? parseFloat(disbNewOut) : undefined,
-      newEmi: disbNewEmi ? parseFloat(disbNewEmi) : undefined,
+      builderDemand: disbDemand ? parseFloat(disbDemand) : undefined, newEmi: disbNewEmi ? parseFloat(disbNewEmi) : undefined,
       remainingTenure: disbTenure ? parseInt(disbTenure, 10) : undefined, notes: disbNotes || undefined }])
-    setDisbDemand(''); setDisbAmount(''); setDisbNewOut(''); setDisbNewEmi(''); setDisbTenure(''); setDisbNotes('')
+    setDisbDemand(''); setDisbAmount(''); setDisbNewEmi(''); setDisbTenure(''); setDisbNotes('')
   }
   function saveEditDisb() {
     if (!editDisb) return
@@ -516,10 +514,6 @@ export function LoanNoter() {
                             <label className="text-[11px] text-gray-500">BANK DISBURSED (₹)</label>
                             <input type="number" value={disbAmount} onChange={e => setDisbAmount(e.target.value)} placeholder="Required" className={IC} />
                           </div>
-                          <div className="col-span-3 flex flex-col gap-1">
-                            <label className="text-[11px] text-gray-500">OUTSTANDING AFTER (₹)</label>
-                            <input type="number" value={disbNewOut} onChange={e => setDisbNewOut(e.target.value)} placeholder="As per bank" className={IC} />
-                          </div>
                         </div>
                         <div className="grid grid-cols-12 gap-2">
                           <div className="col-span-3 flex flex-col gap-1">
@@ -552,7 +546,6 @@ export function LoanNoter() {
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Disbursed</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Shortfall</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Running Total</th>
-                                <th className="px-2 py-2 font-medium text-gray-600 text-left">Outstanding After</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">New EMI</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Tenure</th>
                                 <th className="px-2 py-2 font-medium text-gray-600 text-left">Notes</th>
@@ -570,12 +563,11 @@ export function LoanNoter() {
                                         <td className="px-2 py-2"><input type="number" value={editDisb.builderDemand ?? ''} onChange={e => setEditDisb({ ...editDisb, builderDemand: e.target.value ? parseFloat(e.target.value) : undefined })} className={IC} /></td>
                                         <td className="px-2 py-2"><input type="number" value={editDisb.amount} onChange={e => setEditDisb({ ...editDisb, amount: parseFloat(e.target.value) || 0 })} className={IC} /></td>
                                         <td className="px-2 py-2">-</td><td className="px-2 py-2">-</td>
-                                        <td className="px-2 py-2"><input type="number" value={editDisb.newOutstanding ?? ''} onChange={e => setEditDisb({ ...editDisb, newOutstanding: e.target.value ? parseFloat(e.target.value) : undefined })} className={IC} /></td>
                                         <td className="px-2 py-2"><input type="number" value={editDisb.newEmi ?? ''} onChange={e => setEditDisb({ ...editDisb, newEmi: e.target.value ? parseFloat(e.target.value) : undefined })} className={IC} /></td>
                                         <td className="px-2 py-2"><input type="number" value={editDisb.remainingTenure ?? ''} onChange={e => setEditDisb({ ...editDisb, remainingTenure: e.target.value ? parseInt(e.target.value, 10) : undefined })} className={IC} /></td>
                                         <td className="px-2 py-2"><input type="text" value={editDisb.notes ?? ''} onChange={e => setEditDisb({ ...editDisb, notes: e.target.value || undefined })} className={IC} /></td>
                                       </>
-                                    ) : <><td className="px-2 py-2">{fmtDate(d.date)}</td><td className="px-2 py-2">{d.builderDemand != null ? fmtCurrency(d.builderDemand) : '-'}</td><td className="px-2 py-2">{fmtCurrency(d.amount)}</td><td className="px-2 py-2">{shortfall > 0 ? fmtCurrency(shortfall) : '-'}</td><td className="px-2 py-2">{fmtCurrency(runningTotals.get(d.id) ?? d.amount)}</td><td className="px-2 py-2">{d.newOutstanding != null ? fmtCurrency(d.newOutstanding) : '-'}</td><td className="px-2 py-2">{d.newEmi != null ? fmtCurrency(d.newEmi) : '-'}</td><td className="px-2 py-2">{d.remainingTenure ?? '-'}</td><td className="px-2 py-2 text-gray-500">{d.notes ?? '-'}</td></>}
+                                    ) : <><td className="px-2 py-2">{fmtDate(d.date)}</td><td className="px-2 py-2">{d.builderDemand != null ? fmtCurrency(d.builderDemand) : '-'}</td><td className="px-2 py-2">{fmtCurrency(d.amount)}</td><td className="px-2 py-2">{shortfall > 0 ? fmtCurrency(shortfall) : '-'}</td><td className="px-2 py-2">{fmtCurrency(runningTotals.get(d.id) ?? d.amount)}</td><td className="px-2 py-2">{d.newEmi != null ? fmtCurrency(d.newEmi) : '-'}</td><td className="px-2 py-2">{d.remainingTenure ?? '-'}</td><td className="px-2 py-2 text-gray-500">{d.notes ?? '-'}</td></>}
                                     <td className="px-2 py-2"><div className="flex items-center gap-2">{editDisb?.id === d.id ? <div className="flex gap-2"><EditBtn onClick={saveEditDisb} /><button type="button" onClick={() => setEditDisb(null)} className="text-gray-400 text-[10px]">Cancel</button></div> : <EditBtn onClick={() => setEditDisb(d)} />}<Del onClick={() => deleteDisbursal(d.id)} /></div></td>
                                   </tr>
                                 )
